@@ -37,8 +37,8 @@ def main():
     """Main function to check and update README if necessary."""
     est_tz = pytz.timezone('US/Eastern')
     current_time = datetime.datetime.now(est_tz)
-
-    if current_time.hour == 22 and not check_commit_today():
+#and not check_commit_today()
+    if current_time.hour == 22 :
         update_readme()
 
 if __name__ == "__main__":
