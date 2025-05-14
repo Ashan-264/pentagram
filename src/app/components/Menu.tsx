@@ -3,7 +3,7 @@ import DropDown from "./Dropdown";
 
 const Menu: React.FC<{ onSelectOption: (option: string) => void }> = ({
   onSelectOption,
-}): JSX.Element => {
+}): React.ReactElement => {
   const [showDropDown, setShowDropDown] = useState<boolean>(false);
   const [selectOption, setSelectOption] = useState<string>("custom");
   const cities = () => {

@@ -3,14 +3,14 @@ import React, { useEffect, useState } from "react";
 type DropDownProps = {
   cities: string[];
   showDropDown: boolean;
-  toggleDropDown: Function;
-  citySelection: Function;
+  toggleDropDown: (show: boolean) => void;
+  citySelection: (city: string) => void;
 };
 
 const DropDown: React.FC<DropDownProps> = ({
   cities,
   citySelection,
-}: DropDownProps): JSX.Element => {
+}: DropDownProps): React.ReactElement => {
   const [showDropDown, setShowDropDown] = useState<boolean>(false);
 
   /**
@@ -32,7 +32,7 @@ const DropDown: React.FC<DropDownProps> = ({
       <div
         className={`absolute z-10 mt-2 w-full bg-white rounded-lg shadow-lg`}
       >
-        {cities.map((city: string, index: number): JSX.Element => {
+        {cities.map((city: string, index: number): React.ReactElement => {
           return (
             <p
               key={index}
