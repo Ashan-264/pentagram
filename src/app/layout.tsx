@@ -34,13 +34,25 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+          className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gradient-to-b from-[#0a0a23] to-[#1a1a2e] text-white`}
         >
           <SignedOut>
-            <SignInButton />
+            <div
+              className="flex items-center justify-center min-h-screen bg-cover bg-center"
+              style={{ backgroundImage: "url('/starry..jpg')" }}
+            >
+              <div className="bg-white/20 bg-gradient-to-r from-green-400 to-blue-600 p-10 rounded-xl shadow-xl text-center">
+                <h1 className="text-5xl font-bold text-gradient">Pixagram</h1>
+
+                <div className="mt-6">
+                  <SignInButton />
+                </div>
+              </div>
+            </div>
           </SignedOut>
+
           <SignedIn>
-            <div className="bg-[#1a1a2e] p-4">
+            <div className="mt-4">
               <UserButton />
             </div>
             {children}
