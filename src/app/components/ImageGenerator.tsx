@@ -1,16 +1,14 @@
 "use client";
-import React from 'react'
-import { useState } from "react";
-import { generateImage } from "../actions/generateImage";
-import { Interface } from 'readline';
+import React, { useState } from "react";
+import NextImage from "next/image";
 
 interface ImageGeneratorProps {
-    generateImage: (
-        text:string)
-        => Promise<{success:boolean, imageURl?: string, error?:string}>
+  generateImage: (
+    text: string
+  ) => Promise<{ success: boolean; imageURL?: string; error?: string }>;
 }
 
-export default function ImageGenerator({generateImage} : ImageGeneratorProps) {
+export default function ImageGenerator({ generateImage }: ImageGeneratorProps) {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [imageURL, setImageURL] = useState<string | null>(null);
@@ -20,26 +18,21 @@ export default function ImageGenerator({generateImage} : ImageGeneratorProps) {
     setIsLoading(true);
 
     try {
-      const result = await generateImage(inputText)
+      const result = await generateImage(inputText);
       if (!result.success) {
-        throw new Error(
-          `Failed to generate image HTTP error, status: ${result.status}`
-        );
-      }
-      const data = await result.json();
-      console.log("", data);
-      if (!data.success) {
-        throw new Error(data.error || "Failed to generate image");
+        throw new Error(result.error || "Failed to generate image");
       }
 
-      if (data.imageURL) {
+      if (result.imageURL) {
         const img = new Image();
         img.onload = () => {
-          setImageURL(data.imageURL);
+          if (result.imageURL) {
+            setImageURL(result.imageURL);
+          }
         };
-        img.src = data.imageURL;
+        img.src = result.imageURL;
       }
-      console.log(data);
+      console.log(result);
       setInputText("");
     } catch (error) {
       console.error("Error:", error);
@@ -49,14 +42,12 @@ export default function ImageGenerator({generateImage} : ImageGeneratorProps) {
   };
 
   return (
-    // TODO: Update the UI here to show the images generated
-
     <div className="min-h-screen flex flex-col justify-between p-8">
-      <main className="flex-1">{/* Main content can go here */}</main>
+      <main className="flex-1"></main>
 
       {imageURL && (
         <div className="w-full max-w-2xl rounded-lg overflow-hidden shadow-lg">
-          <img
+          <NextImage
             src={imageURL}
             alt="Generated artwork"
             className="w-full h-auto"
