@@ -9,7 +9,7 @@ import Groq from "groq-sdk";
 export default function Home() {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [imageURL, setImageURL] = useState<string | null>(null);
+  // const [imageURL, setImageURL] = useState<string | null>(null);
   const [galleryTrigger, setGalleryTrigger] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string>("");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
@@ -124,7 +124,7 @@ export default function Home() {
       if (data.imageURL) {
         const img = new Image();
         img.onload = () => {
-          setImageURL(data.imageURL);
+          //setImageURL(data.imageURL);
           setGalleryTrigger(prev => prev + 1);
         };
         img.src = data.imageURL;

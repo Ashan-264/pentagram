@@ -46,8 +46,8 @@ class Model:
 
         api_key = request.headers.get("X-API-KEY")
 
-        if api_key != self.API_KEY:
-            raise HTTPException(status_code=401, detail="HTTP: unauthorized access")
+       # if api_key != self.API_KEY:
+         #   raise HTTPException(status_code=401, detail="HTTP: unauthorized access")
         
         buffer = io.BytesIO()
         image.save(buffer, format="JPEG")
@@ -69,10 +69,10 @@ class Model:
 )
 
 def keep_warm():
-    #health_url="https://ashan-264--sd-image-generator-model-health.modal.run"
-    #generate_url="https://ashan-264--sd-image-generator-model-generate.modal.run"
-    health_url="https://ashan-264--sd-image-generator-model-health-dev.modal.run"
-    generate_url= "https://ashan-264--sd-image-generator-model-generate-dev.modal.run"
+    health_url="https://ashan-264--sd-image-generator-model-health.modal.run"
+    generate_url="https://ashan-264--sd-image-generator-model-generate.modal.run"
+    #health_url="https://ashan-264--sd-image-generator-model-health-dev.modal.run"
+    #generate_url= "https://ashan-264--sd-image-generator-model-generate-dev.modal.run"
 
     #First check health endpoint
     health_response= requests.get(health_url)

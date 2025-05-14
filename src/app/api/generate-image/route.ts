@@ -17,7 +17,8 @@ export async function POST(request: Request) {
     // the above is not secure enough
     const url = new URL(
       //"https://ashan-264--sd-image-generator-model-generate.modal.run/"
-      "https://ashan-264--sd-image-generator-model-generate-dev.modal.run"
+      //"https://ashan-264--sd-image-generator-model-generate-dev.modal.run"
+      "https://ashan-264--sd-image-generator-model-generate.modal.run"
     );
     url.searchParams.set("prompt", text);
     console.log("request url:", url.toString());
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
       message: `Received: ${text}`,
     });
   } catch (error) {
+    console.error("Error occurred:", error);
     return NextResponse.json(
       { success: false, error: "Failed to process request" },
       { status: 500 }
