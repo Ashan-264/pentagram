@@ -17,8 +17,9 @@ export async function GET() {
       imageURLs: imageUrls,
     });
   } catch (err) {
+    console.error("Error fetching images: ", err);
     return NextResponse.json(
-      { success: false, error: `Failed to gte images error: ${err}` },
+      { success: false, error: `Failed to get images error: ${err}` },
       { status: 500 }
     );
   }

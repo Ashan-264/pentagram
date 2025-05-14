@@ -24,7 +24,7 @@ export default function Home() {
   }, []);
 
   const client = new Groq({
-    apiKey: "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",
+    apiKey: "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",
     dangerouslyAllowBrowser: true,
   });
 

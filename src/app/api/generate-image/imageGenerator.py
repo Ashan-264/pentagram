@@ -46,8 +46,8 @@ class Model:
 
         api_key = request.headers.get("X-API-KEY")
 
-        #if api_key != self.API_KEY:
-        #    raise HTTPException(status_code=401, detail="HTTP: unauthorized access")
+        if api_key != self.API_KEY:
+            raise HTTPException(status_code=401, detail="HTTP: unauthorized access")
         
         buffer = io.BytesIO()
         image.save(buffer, format="JPEG")

@@ -5,7 +5,7 @@ const Menu: React.FC<{ onSelectOption: (option: string) => void }> = ({
   onSelectOption,
 }): JSX.Element => {
   const [showDropDown, setShowDropDown] = useState<boolean>(false);
-  const [selectOption, setSelectOption] = useState<string>("");
+  const [selectOption, setSelectOption] = useState<string>("custom");
   const cities = () => {
     return ["Realistic", "Fantasy/ Surreal", "Abstract", "Animated", "custom"];
   };

@@ -34,24 +34,42 @@ model_id = "adamo1139/stable-diffusion-3.5-large-turbo-ungated"
 model_revision_id = "9ad870ac0b0e5e48ced156bb02f85d324b7275d2"
 
 
-@app.cls(
-    image=image,
-    gpu="A10G",
-    timeout=10 * MINUTES,
-)
+from diffusers import StableDiffusion3Pipeline
+
+
+
+@app.cls(image=image, gpu="A10G", timeout=10 * MINUTES)
 class Inference:
     @modal.build()
     @modal.enter()
     def initialize(self):
-        self.pipe = diffusers.StableDiffusion3Pipeline.from_pretrained(
+        # 1) fp16 halves most of the weight memory
+        # 2) low_cpu_mem_usage streams from disk/Hub to avoid extra copies
+        # 3) device_map="balanced" + offload_folder/​offload_state_dict spills all non-critical chunks to CPU
+        self.pipe = StableDiffusion3Pipeline.from_pretrained(
             model_id,
             revision=model_revision_id,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            device_map="balanced",
+            offload_folder="/tmp/offload",
+            offload_state_dict=True,
         )
+        # 4) slice attention into smaller windows
+        self.pipe.enable_attention_slicing()
+        # 5) if you installed xformers, this gives another ~30% mem win
+        try:
+            self.pipe.enable_xformers_memory_efficient_attention()
+        except Exception:
+            pass
 
     @modal.enter()
     def move_to_gpu(self):
-        self.pipe.to("cuda")
+        # all the heavy bits are already placed on GPU/CPU for you—
+        # you can safely leave this empty (or remove it entirely).
+        return
+
+
 
     @modal.method()
     def run(

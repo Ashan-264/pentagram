@@ -10,10 +10,11 @@ export async function POST(request: Request) {
     // TODO: Call your Image Generation API here
     // For now, we'll just echo back the text
 
-    const apiSecret = request.headers.get("X-API-KEY");
-    if (apiSecret != process.env.API_SECRET) {
-      return NextResponse.json({ error: "unauthroized" }, { status: 401 });
-    }
+    // const apiSecret = request.headers.get("X-API-KEY");
+    // if (apiSecret != process.env.API_SECRET) {
+    //   return NextResponse.json({ error: "unauthroized" }, { status: 401 });
+    // }
+    // the above is not secure enough
     const url = new URL(
       //"https://ashan-264--sd-image-generator-model-generate.modal.run/"
       "https://ashan-264--sd-image-generator-model-generate-dev.modal.run"
