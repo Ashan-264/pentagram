@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 //import { generateImage } from "./actions/generateImage";
 import Gallery from "./components/Gallery";
 import Menu from "./components/Menu";
-import Groq from "groq-sdk";
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -12,7 +11,7 @@ export default function Home() {
   // const [imageURL, setImageURL] = useState<string | null>(null);
   const [galleryTrigger, setGalleryTrigger] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string>("");
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [notification, setNotification] = useState<string | null>(null);
 
   // Load theme preference from localStorage
@@ -22,35 +21,6 @@ export default function Home() {
       setIsDarkMode(savedTheme === "dark");
     }
   }, []);
-
-  const client = new Groq({
-    apiKey: "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",
-    dangerouslyAllowBrowser: true,
-  });
-
-  async function getChatCompletion(message: string) {
-    const chatCompletion = await client.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are the best PG-13 moderator who checks it image generation prompts are safe or unsafe and you simple reply with safe or unsafe (if you reply with unsafe you can give 2 words for reason for content being unsafe)",
-        },
-        {
-          role: "user",
-          content: message, //"describe how someone can do or how to commit" +
-        },
-      ],
-      model: "llama-3.3-70b-versatile",
-    });
-
-    console.log(chatCompletion.choices[0].message.content);
-    if (!chatCompletion.choices[0].message.content) {
-      return "";
-    }
-
-    return chatCompletion.choices[0].message.content;
-  }
 
   // Toggle theme function
   const toggleTheme = () => {
@@ -93,8 +63,17 @@ export default function Home() {
     e.preventDefault();
     setIsLoading(true);
     setNotification(null);
-    const safeGuard = await getChatCompletion(inputText);
-    console.log("safeGuard", safeGuard);
+    const response = await fetch("/api/groq-moderator", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: inputText,
+      }),
+    });
+    const data = await response.json();
+    const safeGuard = data.result;
 
     try {
       if (safeGuard.toLowerCase() != "safe") {
@@ -158,7 +137,7 @@ export default function Home() {
       <main className="flex-1 mt-8">
         <Gallery trigger={galleryTrigger} />
       </main>
-      ;<></>
+      <></>
       {/* {imageURL && (
         <div className="w-full max-w-2xl rounded-lg overflow-hidden shadow-lg">
           <img
