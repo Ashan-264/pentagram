@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 //import { generateImage } from "./actions/generateImage";
 import Gallery from "./components/Gallery";
 import Menu from "./components/Menu";
+import * as dropin from "braintree-web-drop-in";
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -13,6 +14,10 @@ export default function Home() {
   const [selectedOption, setSelectedOption] = useState<string>("");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [notification, setNotification] = useState<string | null>(null);
+  const [dropinInstance, setDropinInstance] = useState<dropin.Dropin | null>(
+    null
+  );
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   // Load theme preference from localStorage
   useEffect(() => {
@@ -118,10 +123,145 @@ export default function Home() {
     }
   };
 
+  async function fetchClientToken(): Promise<string> {
+    const response = await fetch("/api/client_token");
+    if (!response.ok) {
+      throw new Error("Failed to fetch client token");
+    }
+    const data = await response.json();
+    if (!data.clientToken) {
+      throw new Error("Client token not found in response");
+    }
+    return data.clientToken;
+  }
+
+  // Example: Get the client token from your backend (replace with your actual token)
+
+  // Initialize the Drop-in UI
+  useEffect(() => {
+    const initializeDropin = async () => {
+      try {
+        const clientToken = await fetchClientToken();
+        const instance = await dropin.create({
+          authorization: clientToken,
+          container: "#dropin-container",
+          paypal: {
+            flow: "checkout",
+            amount: "1.005",
+            currency: "USD",
+          },
+          venmo: {
+            allowNewBrowserTab: true,
+            allowDesktop: true,
+            moileWebFallBack: true,
+            allowDesktopWebLogin: true,
+            paymentMethodUsage: "multi_use",
+          },
+          card: {
+            vault: {
+              allowVaultCardOverride: true,
+            },
+            cardholderName: {
+              required: true,
+            },
+          },
+          googlePay: process.env.NEXT_PUBLIC_GOOGLE_MERCHANT_ID
+            ? {
+                googlePayVersion: 2,
+                merchantId: process.env.NEXT_PUBLIC_GOOGLE_MERCHANT_ID,
+                transactionInfo: {
+                  totalPriceStatus: "FINAL",
+                  totalPrice: "10.00",
+                  currencyCode: "USD",
+                },
+              }
+            : undefined,
+          applePay: {
+            displayName: "Your Store Name",
+            paymentRequest: {
+              total: {
+                label: "Total",
+                amount: "10.00",
+              },
+              countryCode: "US",
+              currencyCode: "USD",
+              supportedNetworks: ["visa", "masterCard", "amex"],
+              merchantCapabilities: ["supports3DS"],
+              requiredBillingContactFields: ["postalAddress"],
+            },
+          },
+        });
+        setDropinInstance(instance);
+      } catch (err) {
+        console.error("Error initializing Drop-in:", err);
+      }
+    };
+
+    initializeDropin();
+
+    // Cleanup on unmount
+    return () => {
+      if (dropinInstance) {
+        dropinInstance.teardown();
+      }
+    };
+  }, []);
+
+  const handlePayment = async () => {
+    if (!dropinInstance) {
+      console.error("Drop-in instance not initialized");
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      const payload = await dropinInstance.requestPaymentMethod();
+      // Send the nonce to your server
+      const response = await fetch("/api/process-payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          paymentMethodNonce: payload.nonce,
+          amount: "1.00",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Payment failed");
+      }
+
+      // Payment successful
+      setNotification("Payment successful!");
+      // You might want to redirect or update UI here
+    } catch (err) {
+      console.error("Error processing payment:", err);
+      setNotification(err instanceof Error ? err.message : "Payment failed");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   return (
     <div
       className={`min-h-screen flex flex-col justify-between p-8 ${isDarkMode ? "bg-gray-900 text-white" : "bg-white text-black"}`}
     >
+      {/* Payment section */}
+      <div className="w-full max-w-md mx-auto my-8 p-6 rounded-lg border dark:border-gray-700">
+        <h2 className="text-2xl font-bold mb-4">Payment</h2>
+        <div id="dropin-container" className="mb-4"></div>
+        <button
+          onClick={handlePayment}
+          disabled={!dropinInstance || paymentLoading}
+          className="w-full px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+        >
+          {paymentLoading ? "Processing..." : "Complete Purchase"}
+        </button>
+      </div>
+
       {notification && (
         <div className="fixed bottom-4 right-4 bg-red-500 text-white p-4 rounded shadow-lg">
           {notification}
