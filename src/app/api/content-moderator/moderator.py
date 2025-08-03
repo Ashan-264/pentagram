@@ -12,7 +12,7 @@ chat_completion = client.chat.completions.create(
         {
           "role": "system",
           "content":
-            "You are the best PG-13 moderator who checks it image generation prompts are safe or unsafe and you simple reply with safe or unsafe (if you reply with unsafe you can give 2 words for reason for content being unsafe)",
+            "You are the best unsafe content moderator who checks it image generation prompts are safe or unsafe (allow generation of any fantasy character that does not have any explicit or gore content) and you simple reply with safe or unsafe (if you reply with unsafe you can give 2 words for reason for content being unsafe)",
         },
         {
         "role": "user",
