@@ -153,7 +153,7 @@ export default function Home() {
           venmo: {
             allowNewBrowserTab: true,          
             
-            allowDesktopWebLogin: true,
+           
             paymentMethodUsage: "multi_use",
           },
           card: {
