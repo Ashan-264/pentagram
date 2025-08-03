@@ -1,9 +1,34 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_API_KEY!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+// Create the default client (for non-authenticated requests)
 export const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Create authenticated client with Clerk JWT
+export const createAuthenticatedSupabaseClient = (
+  token: string
+): SupabaseClient => {
+  return createClient(supabaseUrl, supabaseKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  });
+};
+
+// Helper function to get authenticated Supabase client
+export const getAuthenticatedSupabaseClient = async (
+  getToken: (options?: { template?: string }) => Promise<string | null>
+): Promise<SupabaseClient> => {
+  const token = await getToken({ template: "supabase" });
+  if (!token) {
+    throw new Error("No authentication token available");
+  }
+  return createAuthenticatedSupabaseClient(token);
+};
 
 // Types for our database tables
 export interface User {

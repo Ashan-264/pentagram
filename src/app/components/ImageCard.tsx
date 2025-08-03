@@ -26,6 +26,13 @@ import CommentIcon from "@mui/icons-material/Comment";
 import PublicIcon from "@mui/icons-material/Public";
 import LockIcon from "@mui/icons-material/Lock";
 import { CircularProgress } from "@mui/material";
+import { useUser, useAuth } from "@clerk/nextjs";
+import {
+  authenticatedGet,
+  authenticatedPost,
+  authenticatedPut,
+  //authenticatedDelete,
+} from "../../lib/auth-api";
 
 interface Comment {
   id: string;
@@ -76,19 +83,21 @@ const ImageCard: React.FC<ImageCardProps> = ({
   const [commentLoading, setCommentLoading] = useState(false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
 
-  // Mock user ID (in production, get from Clerk auth)
-  const userId = "620dbb20-0cea-4982-bc3a-3733695b76c2"; // Use the system user ID for now
-  const username = "User" + Math.floor(Math.random() * 1000);
+  // Get current user from Clerk
+  const { user } = useUser();
+  const { getToken } = useAuth();
+  const userId = user?.id || "620dbb20-0cea-4982-bc3a-3733695b76c2"; // Fallback to system user
 
   useEffect(() => {
     fetchLikes();
     fetchComments();
-  }, [image.id]);
+  }, [image.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchLikes = async () => {
     try {
-      const response = await fetch(
-        `/api/likes?imageId=${encodeURIComponent(image.id)}&userId=${encodeURIComponent(userId)}`
+      const response = await authenticatedGet(
+        `/api/likes?imageId=${encodeURIComponent(image.id)}&userId=${encodeURIComponent(userId)}`,
+        getToken
       );
       if (response.ok) {
         const data = await response.json();
@@ -97,6 +106,19 @@ const ImageCard: React.FC<ImageCardProps> = ({
       }
     } catch (error) {
       console.error("Error fetching likes:", error);
+      // Fallback to non-authenticated request for public data
+      try {
+        const response = await fetch(
+          `/api/likes?imageId=${encodeURIComponent(image.id)}&userId=${encodeURIComponent(userId)}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setLikeCount(data.count);
+          setLiked(data.userHasLiked);
+        }
+      } catch (fallbackError) {
+        console.error("Fallback fetch also failed:", fallbackError);
+      }
     }
   };
 
@@ -115,15 +137,14 @@ const ImageCard: React.FC<ImageCardProps> = ({
   };
 
   const handleLike = async () => {
+    if (!user) return; // Require authentication for likes
     setLoading(true);
     try {
-      const response = await fetch("/api/likes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ image_id: image.id, user_id: userId }),
-      });
+      const response = await authenticatedPost(
+        "/api/likes",
+        { image_id: image.id, user_id: userId },
+        getToken
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -138,21 +159,19 @@ const ImageCard: React.FC<ImageCardProps> = ({
   };
 
   const handleAddComment = async () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !user) return; // Require authentication for comments
 
     setCommentLoading(true);
     try {
-      const response = await fetch("/api/comments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const response = await authenticatedPost(
+        "/api/comments",
+        {
           image_id: image.id,
           user_id: userId,
           comment_text: newComment.trim(),
-        }),
-      });
+        },
+        getToken
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -173,18 +192,17 @@ const ImageCard: React.FC<ImageCardProps> = ({
   };
 
   const handlePrivacyToggle = async () => {
+    if (!user) return; // Require authentication for privacy changes
     setPrivacyLoading(true);
     try {
-      const response = await fetch("/api/images", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const response = await authenticatedPut(
+        "/api/images",
+        {
           id: image.id,
           is_public: !image.is_public,
-        }),
-      });
+        },
+        getToken
+      );
 
       if (response.ok) {
         onPrivacyChange(image.id, !image.is_public);
@@ -237,7 +255,7 @@ const ImageCard: React.FC<ImageCardProps> = ({
               {comments.length}
             </Typography>
           </Box>
-          
+
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             {/* Privacy Toggle */}
             <Tooltip title={image.is_public ? "Make Private" : "Make Public"}>
@@ -262,7 +280,7 @@ const ImageCard: React.FC<ImageCardProps> = ({
                 )}
               </IconButton>
             </Tooltip>
-            
+
             {/* Delete Button */}
             <IconButton
               onClick={() => onDelete(image.id)}

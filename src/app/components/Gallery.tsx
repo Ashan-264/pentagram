@@ -60,7 +60,7 @@ const Gallery: React.FC<{ trigger: number }> = ({ trigger }) => {
     };
 
     fetchImages();
-  }, [trigger]);
+  }, [trigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filterImagesByTab = (
     tab: TabValue,

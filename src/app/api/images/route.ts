@@ -135,7 +135,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updates: any = {};
+    const updates: { is_public?: boolean } = {};
     if (is_public !== undefined) updates.is_public = is_public;
 
     if (Object.keys(updates).length === 0) {

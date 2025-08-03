@@ -5,8 +5,18 @@ import { useState, useEffect } from "react";
 import Gallery from "./components/Gallery";
 import Menu from "./components/Menu";
 import * as dropin from "braintree-web-drop-in";
+//import { useUser, useAuth } from "@clerk/nextjs";
+
+// Type for Apple Pay
+interface WindowWithApplePay extends Window {
+  ApplePaySession?: {
+    canMakePayments(): boolean;
+  };
+}
 
 export default function Home() {
+  //const { user, isLoaded } = useUser();
+  //const { getToken } = useAuth();
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -231,7 +241,7 @@ export default function Home() {
 
       // Declare outside try block so it's accessible in catch
       let originalWindowOpen: typeof window.open = window.open;
-      let originalFetch: typeof window.fetch = window.fetch;
+      const originalFetch: typeof window.fetch = window.fetch;
 
       try {
         // Add global error listeners before initializing
@@ -303,7 +313,7 @@ export default function Home() {
           return originalFetch.call(this, input, init);
         };
 
-        instance = await dropin.create({
+        instance = (await dropin.create({
           authorization: clientToken,
           container: "#dropin-container",
           // Enhanced styling and UX options
@@ -311,19 +321,6 @@ export default function Home() {
           translations: {
             payWithCard: "Pay with Credit/Debit Card",
             chooseAnotherWayToPay: "Choose another payment method",
-          },
-          // Add global error handling
-          onError: (error: any) => {
-            console.error("Drop-in error:", error);
-            // Don't bubble up certain errors that are expected in sandbox
-            if (
-              error.type !== "CUSTOMER" &&
-              !error.message?.includes("popup")
-            ) {
-              setNotification(
-                "Payment method temporarily unavailable. Please try a different payment method."
-              );
-            }
           },
           // PayPal configuration
           paypal: {
@@ -334,7 +331,7 @@ export default function Home() {
               color: "gold",
               shape: "rect",
               size: "responsive",
-            },
+            } as Record<string, string>,
           },
           // PayPal Credit (Pay Later)
           paypalCredit: {
@@ -351,12 +348,7 @@ export default function Home() {
                 allowDesktopWebLogin: true, // Sandbox-specific
                 profileId: null, // Don't require profile ID in sandbox
               }),
-              // Add comprehensive error handling for popup issues
-              onError: (error: any) => {
-                console.warn("Venmo error (handled):", error);
-                // Prevent all Venmo errors from propagating
-                return false;
-              },
+
               // Add additional sandbox-specific configurations
               ...(process.env.NODE_ENV === "development" && {
                 ignoreHistoryChanges: true, // Prevent navigation issues
@@ -407,18 +399,15 @@ export default function Home() {
                 totalPrice: "10.00",
                 currencyCode: "USD",
               },
-              allowedCardNetworks: ["VISA", "MASTERCARD", "AMEX"],
-              allowedPaymentMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
-              buttonOptions: {
-                buttonColor: "black",
-                buttonType: "buy",
-              },
             },
           }),
           // Apple Pay (only if supported)
           ...(typeof window !== "undefined" &&
-            typeof (window as any).ApplePaySession !== "undefined" &&
-            (window as any).ApplePaySession.canMakePayments() && {
+            typeof (window as WindowWithApplePay).ApplePaySession !==
+              "undefined" &&
+            (
+              window as WindowWithApplePay
+            ).ApplePaySession?.canMakePayments() && {
               applePay: {
                 displayName: "Pentagram Store",
                 paymentRequest: {
@@ -438,10 +427,8 @@ export default function Home() {
           // 3D Secure configuration
           threeDSecure: {
             amount: "10.00",
-            challengeRequested: true,
-            exemptionRequested: false,
           },
-        });
+        })) as unknown as dropin.Dropin;
         setDropinInstance(instance);
 
         // Restore original functions after initialization
@@ -496,7 +483,7 @@ export default function Home() {
         );
 
         if (instance) {
-          instance.teardown().catch((error: any) => {
+          instance.teardown().catch((error: Error | unknown) => {
             // Ignore teardown errors - they're expected in some cases
             console.warn("Drop-in teardown warning:", error);
           });
@@ -522,7 +509,7 @@ export default function Home() {
       );
 
       if (instance) {
-        instance.teardown().catch((error: any) => {
+        instance.teardown().catch((error: Error | unknown) => {
           // Ignore teardown errors - they're expected in some cases
           console.warn("Drop-in teardown warning:", error);
         });
@@ -534,7 +521,7 @@ export default function Home() {
         container.innerHTML = "";
       }
     };
-  }, [isPaymentVisible]); // Re-run when payment visibility changes
+  }, [isPaymentVisible, dropinInstance]); // Re-run when payment visibility changes
 
   const handlePayment = async () => {
     if (!dropinInstance) {
@@ -595,19 +582,29 @@ export default function Home() {
             "threeDSecureInfo" in payload &&
             payload.threeDSecureInfo && {
               threeDSecureInfo: {
-                liabilityShifted: (payload as any).liabilityShifted,
-                liabilityShiftPossible: (payload as any).liabilityShiftPossible,
+                liabilityShifted: (
+                  payload as unknown as Record<string, unknown>
+                ).liabilityShifted,
+                liabilityShiftPossible: (
+                  payload as unknown as Record<string, unknown>
+                ).liabilityShiftPossible,
               },
             }),
           // Include card details if available (for receipts)
           ...(payload.details &&
             "cardType" in payload.details && {
               paymentDetails: {
-                cardType: (payload.details as any).cardType,
+                cardType: (
+                  payload.details as unknown as Record<string, unknown>
+                ).cardType,
                 lastTwo:
-                  (payload.details as any).lastTwo ||
-                  (payload.details as any).dpanLastTwo,
-                lastFour: (payload.details as any).lastFour,
+                  (payload.details as unknown as Record<string, unknown>)
+                    .lastTwo ||
+                  (payload.details as unknown as Record<string, unknown>)
+                    .dpanLastTwo,
+                lastFour: (
+                  payload.details as unknown as Record<string, unknown>
+                ).lastFour,
               },
             }),
         }),

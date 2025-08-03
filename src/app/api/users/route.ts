@@ -100,7 +100,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updates: any = {};
+    const updates: { username?: string; email?: string; name?: string } = {};
     if (username !== undefined) updates.username = username;
     if (email !== undefined) updates.email = email;
     if (name !== undefined) updates.name = name;
