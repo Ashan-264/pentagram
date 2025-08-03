@@ -13,8 +13,18 @@ export async function GET() {
 
   // Validate required environment variables
   if (!merchantId || !publicKey || !privateKey) {
+    console.error("Missing Braintree credentials:", {
+      merchantId: !!merchantId,
+      publicKey: !!publicKey,
+      privateKey: !!privateKey,
+      environment: process.env.BRAINTREE_ENVIRONMENT || "not set",
+    });
     return NextResponse.json(
-      { error: "Braintree credentials not configured" },
+      {
+        error: "Braintree credentials not configured",
+        details:
+          "Please check your environment variables: BRAINTREE_MERCHANT_ID, BRAINTREE_PUBLIC_KEY, BRAINTREE_PRIVATE_KEY",
+      },
       { status: 500 }
     );
   }
