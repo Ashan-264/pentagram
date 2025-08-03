@@ -151,10 +151,7 @@ export default function Home() {
             currency: "USD",
           },
           venmo: {
-            allowNewBrowserTab: true,          
-            
-           
-            paymentMethodUsage: "multi_use",
+            allowNewBrowserTab: true,
           },
           card: {
             vault: {
