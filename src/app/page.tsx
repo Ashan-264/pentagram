@@ -151,8 +151,8 @@ export default function Home() {
             currency: "USD",
           },
           venmo: {
-            allowNewBrowserTab: true,            
-            moileWebFallBack: true,
+            allowNewBrowserTab: true,          
+            
             allowDesktopWebLogin: true,
             paymentMethodUsage: "multi_use",
           },
