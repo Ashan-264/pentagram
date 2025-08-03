@@ -40,7 +40,6 @@ from diffusers import StableDiffusion3Pipeline
 
 @app.cls(image=image, gpu="A10G", timeout=10 * MINUTES)
 class Inference:
-    @modal.build()
     @modal.enter()
     def initialize(self):
         # 1) fp16 halves most of the weight memory

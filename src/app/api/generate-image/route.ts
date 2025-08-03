@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { supabase } from "@/lib/supabase";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { text } = body;
+    const { text, user_id } = body;
     console.log(text);
     // TODO: Call your Image Generation API here
     // For now, we'll just echo back the text
@@ -47,9 +48,71 @@ export async function POST(request: Request) {
       contentType: "image/jpeg",
     });
 
+    // Get or create default user if no user_id provided
+    let finalUserId = user_id;
+    if (!finalUserId) {
+      const { data: defaultUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("username", "pentagram_system")
+        .single();
+
+      if (defaultUser) {
+        finalUserId = defaultUser.id;
+      } else {
+        // Create default system user
+        const { data: newUser, error: userError } = await supabase
+          .from("users")
+          .insert([{
+            username: "pentagram_system",
+            email: "system@pentagram.app",
+            name: "Pentagram System"
+          }])
+          .select()
+          .single();
+
+        if (userError) {
+          console.error("Failed to create default user:", userError);
+        } else {
+          finalUserId = newUser.id;
+        }
+      }
+    }
+
+    // Create database record for the new image
+    let imageRecord = null;
+    if (finalUserId) {
+      try {
+        const { data, error: dbError } = await supabase
+          .from("images")
+          .insert([{
+            user_id: finalUserId,
+            blob_name: filename,
+            is_public: true
+          }])
+          .select(`
+            *,
+            users:user_id (
+              username,
+              name
+            )
+          `)
+          .single();
+
+        if (dbError) {
+          console.error("Failed to create image record:", dbError);
+        } else {
+          imageRecord = data;
+        }
+      } catch (dbErr) {
+        console.error("Database error:", dbErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       imageURL: blob.url,
+      imageRecord: imageRecord,
       message: `Received: ${text}`,
     });
   } catch (error) {

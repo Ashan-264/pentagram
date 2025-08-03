@@ -25,7 +25,7 @@ app = modal.App("sd_image_generator",image=image)
 
 class Model:
 
-    @modal.build()
+    
     @modal.enter()
     def load_weights(self):
         from diffusers  import AutoPipelineForText2Image
