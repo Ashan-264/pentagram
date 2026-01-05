@@ -62,23 +62,24 @@ class Model:
         return {"status":"healthy" , "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
-@app.function(
-    schedule=modal.Cron("*/5 * * * *"),
-    #secrets=(modal.Secret.from_name("API_KEY"))
-    
-)
+# Disabled to reduce Modal usage costs
+# @app.function(
+#     schedule=modal.Cron("*/5 * * * *"),
+#     #secrets=(modal.Secret.from_name("API_KEY"))
+#     
+# )
 
-def keep_warm():
-    health_url="https://ashan-264--sd-image-generator-model-health.modal.run"
-    generate_url="https://ashan-264--sd-image-generator-model-generate.modal.run"
-    #health_url="https://ashan-264--sd-image-generator-model-health-dev.modal.run"
-    #generate_url= "https://ashan-264--sd-image-generator-model-generate-dev.modal.run"
+# def keep_warm():
+#     health_url="https://ashan-264--sd-image-generator-model-health.modal.run"
+#     generate_url="https://ashan-264--sd-image-generator-model-generate.modal.run"
+#     #health_url="https://ashan-264--sd-image-generator-model-health-dev.modal.run"
+#     #generate_url= "https://ashan-264--sd-image-generator-model-generate-dev.modal.run"
 
-    #First check health endpoint
-    health_response= requests.get(health_url)
-    print(f"Health check at: {health_response.json() ['timestamp']}")
+#     #First check health endpoint
+#     health_response= requests.get(health_url)
+#     print(f"Health check at: {health_response.json() ['timestamp']}")
 
-    #Then make a test request to generate endpoint with API key
-    headers = {"X-API-KEY":os.environ["API-KEY"]}
-    generate_response = requests.get(generate_url, headers=headers)
-    print(f"Generate endpoint test successfully at: {datetime.now(timezone.utc).isoformat()}")
+#     #Then make a test request to generate endpoint with API key
+#     # headers = {"X-API-KEY":os.environ["API-KEY"]}
+#     # generate_response = requests.get(generate_url, headers=headers)
+#     # print(f"Generate endpoint test successfully at: {datetime.now(timezone.utc).isoformat()}")
