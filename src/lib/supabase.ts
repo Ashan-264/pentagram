@@ -3,9 +3,6 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-// Check if we're using placeholder values
-export const isUsingPlaceholder = !supabaseUrl || !supabaseKey;
-
 // Create the default client (for non-authenticated requests)
 // Only create if both URL and key are available
 export const supabase =

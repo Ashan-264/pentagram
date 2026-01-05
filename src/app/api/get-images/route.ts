@@ -1,55 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { list } from "@vercel/blob";
-import { supabase, isUsingPlaceholder } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
   try {
-    // If using placeholder Supabase, return all blob images directly
-    if (isUsingPlaceholder) {
-      const vercelToken = process.env.BLOB_READ_WRITE_TOKEN;
-      if (!vercelToken) {
-        return NextResponse.json(
-          { success: false, error: "No storage configured" },
-          { status: 500 }
-        );
-      }
-
-      const blobsArr = await list({
-        prefix: "pentagram/",
-        token: vercelToken,
-      });
-
-      const imageBlobs = blobsArr.blobs.filter(blob =>
-        /\.(jpg|jpeg|png|gif|webp)$/i.test(blob.pathname)
-      );
-
-      const imagesWithUrls = imageBlobs.map((blob, index) => ({
-        id: blob.pathname,
-        user_id: "system",
-        blob_name: blob.pathname.replace("pentagram/", ""),
-        is_public: true,
-        upload_date: blob.uploadedAt,
-        created_at: blob.uploadedAt,
-        updated_at: blob.uploadedAt,
-        downloadUrl: blob.downloadUrl,
-        imageURL: blob.downloadUrl,
-        likeCount: 0,
-        commentCount: 0,
-        users: {
-          username: "system",
-          name: "System User",
-        },
-      }));
-
-      return NextResponse.json({
-        success: true,
-        images: imagesWithUrls,
-        imageURLs: imagesWithUrls.map(img => img.downloadUrl),
-        total: imagesWithUrls.length,
-        mode: "placeholder",
-      });
-    }
-
     const { searchParams } = new URL(request.url);
     const includePrivate = searchParams.get("includePrivate") === "true";
     const userId = searchParams.get("userId");
