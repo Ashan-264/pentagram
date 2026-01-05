@@ -119,7 +119,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error syncing images:", error);
     return NextResponse.json(
-      { error: "Failed to sync images", details: error.message },
+      {
+        error: "Failed to sync images",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
