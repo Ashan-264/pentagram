@@ -1,15 +1,22 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // Create the default client (for non-authenticated requests)
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Only create if both URL and key are available
+export const supabase =
+  supabaseUrl && supabaseKey
+    ? createClient(supabaseUrl, supabaseKey)
+    : createClient("https://placeholder.supabase.co", "placeholder-key");
 
 // Create authenticated client with Clerk JWT
 export const createAuthenticatedSupabaseClient = (
   token: string
 ): SupabaseClient => {
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase configuration missing");
+  }
   return createClient(supabaseUrl, supabaseKey, {
     global: {
       headers: {
