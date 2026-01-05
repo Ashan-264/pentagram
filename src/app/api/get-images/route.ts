@@ -1,9 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import { list } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { supabase, isUsingPlaceholder } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
   try {
+    // If using placeholder Supabase, return all blob images directly
+    if (isUsingPlaceholder) {
+      const vercelToken = process.env.BLOB_READ_WRITE_TOKEN;
+      if (!vercelToken) {
+        return NextResponse.json(
+          { success: false, error: "No storage configured" },
+          { status: 500 }
+        );
+      }
+
+      const blobsArr = await list({
+        prefix: "pentagram/",
+        token: vercelToken,
+      });
+
+      const imageBlobs = blobsArr.blobs.filter(blob =>
+        /\.(jpg|jpeg|png|gif|webp)$/i.test(blob.pathname)
+      );
+
+      const imagesWithUrls = imageBlobs.map((blob, index) => ({
+        id: blob.pathname,
+        user_id: "system",
+        blob_name: blob.pathname.replace("pentagram/", ""),
+        is_public: true,
+        upload_date: blob.uploadedAt,
+        created_at: blob.uploadedAt,
+        updated_at: blob.uploadedAt,
+        downloadUrl: blob.downloadUrl,
+        imageURL: blob.downloadUrl,
+        likeCount: 0,
+        commentCount: 0,
+        users: {
+          username: "system",
+          name: "System User",
+        },
+      }));
+
+      return NextResponse.json({
+        success: true,
+        images: imagesWithUrls,
+        imageURLs: imagesWithUrls.map(img => img.downloadUrl),
+        total: imagesWithUrls.length,
+        mode: "placeholder",
+      });
+    }
+
     const { searchParams } = new URL(request.url);
     const includePrivate = searchParams.get("includePrivate") === "true";
     const userId = searchParams.get("userId");
@@ -13,13 +59,15 @@ export async function GET(request: NextRequest) {
     // Build query for database images
     let query = supabase
       .from("images")
-      .select(`
+      .select(
+        `
         *,
         users:user_id (
           username,
           name
         )
-      `)
+      `
+      )
       .order("upload_date", { ascending: false });
 
     // Filter by visibility
@@ -63,31 +111,26 @@ export async function GET(request: NextRequest) {
     });
 
     // Combine database records with blob URLs
-    const imagesWithUrls = dbImages?.map(image => ({
-      ...image,
-      downloadUrl: blobUrlMap.get(image.blob_name),
-      // Keep legacy format for backward compatibility
-      imageURL: blobUrlMap.get(image.blob_name)
-    })) || [];
+    const imagesWithUrls =
+      dbImages?.map(image => ({
+        ...image,
+        downloadUrl: blobUrlMap.get(image.blob_name),
+        // Keep legacy format for backward compatibility
+        imageURL: blobUrlMap.get(image.blob_name),
+      })) || [];
 
     // Filter out images that don't have corresponding blobs
     const validImages = imagesWithUrls.filter(img => img.downloadUrl);
 
     // Get like and comment counts for each image
     const imageIds = validImages.map(img => img.id);
-    
+
     const [likeCounts, commentCounts] = await Promise.all([
       // Get like counts
-      supabase
-        .from("likes")
-        .select("image_id")
-        .in("image_id", imageIds),
-      
+      supabase.from("likes").select("image_id").in("image_id", imageIds),
+
       // Get comment counts
-      supabase
-        .from("comments")
-        .select("image_id")
-        .in("image_id", imageIds)
+      supabase.from("comments").select("image_id").in("image_id", imageIds),
     ]);
 
     // Create count maps
@@ -95,18 +138,24 @@ export async function GET(request: NextRequest) {
     const commentCountMap = new Map();
 
     likeCounts.data?.forEach(like => {
-      likeCountMap.set(like.image_id, (likeCountMap.get(like.image_id) || 0) + 1);
+      likeCountMap.set(
+        like.image_id,
+        (likeCountMap.get(like.image_id) || 0) + 1
+      );
     });
 
     commentCounts.data?.forEach(comment => {
-      commentCountMap.set(comment.image_id, (commentCountMap.get(comment.image_id) || 0) + 1);
+      commentCountMap.set(
+        comment.image_id,
+        (commentCountMap.get(comment.image_id) || 0) + 1
+      );
     });
 
     // Add counts to images
     const finalImages = validImages.map(image => ({
       ...image,
       likeCount: likeCountMap.get(image.id) || 0,
-      commentCount: commentCountMap.get(image.id) || 0
+      commentCount: commentCountMap.get(image.id) || 0,
     }));
 
     return NextResponse.json({
@@ -114,7 +163,7 @@ export async function GET(request: NextRequest) {
       images: finalImages,
       // Legacy format for backward compatibility
       imageURLs: finalImages.map(img => img.downloadUrl),
-      total: finalImages.length
+      total: finalImages.length,
     });
   } catch (err) {
     console.error("Error fetching images: ", err);
