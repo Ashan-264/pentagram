@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { list } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,44 +11,19 @@ export async function GET(request: NextRequest) {
     const offset = searchParams.get("offset");
 
     // Build query for database images
-    let query = supabase
-      .from("images")
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .order("upload_date", { ascending: false });
-
-    // Filter by visibility
-    if (!includePrivate) {
-      query = query.eq("is_public", true);
-    }
-
-    // Filter by user
-    if (userId) {
-      query = query.eq("user_id", userId);
-    }
-
-    // Pagination
-    if (limit) {
-      query = query.limit(parseInt(limit));
-    }
-
-    if (offset && limit) {
-      query = query.range(
-        parseInt(offset),
-        parseInt(offset) + parseInt(limit) - 1
-      );
-    }
-
-    const { data: dbImages, error } = await query;
-
-    if (error) throw error;
+    const dbImages = await prisma.image.findMany({
+      where: {
+        // Filter by visibility
+        ...(!includePrivate ? { is_public: true } : {}),
+        // Filter by user
+        ...(userId ? { user_id: userId } : {}),
+      },
+      include: { users: { select: { username: true, name: true } } },
+      orderBy: { upload_date: "desc" },
+      // Pagination
+      take: limit ? parseInt(limit) : undefined,
+      skip: offset && limit ? parseInt(offset) : undefined,
+    });
 
     // Get Vercel blob list to construct download URLs
     const vercelToken = process.env.BLOB_READ_WRITE_TOKEN;
@@ -81,24 +56,30 @@ export async function GET(request: NextRequest) {
 
     const [likeCounts, commentCounts] = await Promise.all([
       // Get like counts
-      supabase.from("likes").select("image_id").in("image_id", imageIds),
+      prisma.like.findMany({
+        where: { image_id: { in: imageIds } },
+        select: { image_id: true },
+      }),
 
       // Get comment counts
-      supabase.from("comments").select("image_id").in("image_id", imageIds),
+      prisma.comment.findMany({
+        where: { image_id: { in: imageIds } },
+        select: { image_id: true },
+      }),
     ]);
 
     // Create count maps
     const likeCountMap = new Map();
     const commentCountMap = new Map();
 
-    likeCounts.data?.forEach(like => {
+    likeCounts.forEach(like => {
       likeCountMap.set(
         like.image_id,
         (likeCountMap.get(like.image_id) || 0) + 1
       );
     });
 
-    commentCounts.data?.forEach(comment => {
+    commentCounts.forEach(comment => {
       commentCountMap.set(
         comment.image_id,
         (commentCountMap.get(comment.image_id) || 0) + 1

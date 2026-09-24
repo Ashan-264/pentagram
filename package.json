@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "format:fix": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\""
+    "format:fix": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
+    "postinstall": "prisma generate",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.7",
@@ -15,13 +17,15 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^6.2.1",
     "@mui/material": "^6.2.1",
-    "@supabase/supabase-js": "^2.53.0",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "@vercel/blob": "^0.27.0",
     "braintree": "^3.31.0",
     "braintree-web-drop-in": "^1.44.1",
     "groq": "^3.68.3",
     "groq-sdk": "^0.9.1",
     "next": "15.5.26",
+    "pg": "^8.23.0",
     "prettier": "^3.4.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
@@ -31,11 +35,13 @@
     "@types/braintree": "^3.3.14",
     "@types/braintree-web-drop-in": "^1.39.4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^15.5.26",
     "postcss": "^8",
+    "prisma": "^7.10.0",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }

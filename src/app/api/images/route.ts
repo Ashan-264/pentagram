@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
+
+const withUser = { users: { select: { username: true, name: true } } };
 
 // GET /api/images - Get images with optional filters
 export async function GET(request: NextRequest) {
@@ -11,58 +14,33 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get("limit");
     const offset = searchParams.get("offset");
 
-    let query = supabase
-      .from("images")
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .order("upload_date", { ascending: false });
-
     if (id) {
-      query = query.eq("id", id);
-      const { data, error } = await query.single();
+      const data = await prisma.image.findUnique({
+        where: { id },
+        include: withUser,
+      });
 
-      if (error) {
-        if (error.code === "PGRST116") {
-          return NextResponse.json(
-            { error: "Image not found" },
-            { status: 404 }
-          );
-        }
-        throw error;
+      if (!data) {
+        return NextResponse.json({ error: "Image not found" }, { status: 404 });
       }
 
       return NextResponse.json({ image: data });
     }
 
-    if (userId) {
-      query = query.eq("user_id", userId);
-    }
-
-    if (isPublic !== null) {
-      query = query.eq("is_public", isPublic === "true");
-    }
-
-    if (limit) {
-      query = query.limit(parseInt(limit));
-    }
-
-    if (offset) {
-      query = query.range(
-        parseInt(offset),
-        parseInt(offset) + parseInt(limit || "10") - 1
-      );
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    const data = await prisma.image.findMany({
+      where: {
+        ...(userId ? { user_id: userId } : {}),
+        ...(isPublic !== null ? { is_public: isPublic === "true" } : {}),
+      },
+      include: withUser,
+      orderBy: { upload_date: "desc" },
+      take: offset
+        ? parseInt(limit || "10")
+        : limit
+          ? parseInt(limit)
+          : undefined,
+      skip: offset ? parseInt(offset) : undefined,
+    });
 
     return NextResponse.json({ images: data });
   } catch (error) {
@@ -87,31 +65,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user exists
-    const { data: userExists } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", user_id)
-      .single();
+    const userExists = await prisma.user.findUnique({
+      where: { id: user_id },
+      select: { id: true },
+    });
 
     if (!userExists) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { data, error } = await supabase
-      .from("images")
-      .insert([{ user_id, blob_name, is_public }])
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .single();
-
-    if (error) throw error;
+    const data = await prisma.image.create({
+      data: { user_id, blob_name, is_public },
+      include: withUser,
+    });
 
     return NextResponse.json({ image: data }, { status: 201 });
   } catch (error) {
@@ -145,30 +111,20 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("images")
-      .update(updates)
-      .eq("id", id)
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .single();
-
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Image not found" }, { status: 404 });
-      }
-      throw error;
-    }
+    const data = await prisma.image.update({
+      where: { id },
+      data: updates,
+      include: withUser,
+    });
 
     return NextResponse.json({ image: data });
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      return NextResponse.json({ error: "Image not found" }, { status: 404 });
+    }
     console.error("Error updating image:", error);
     return NextResponse.json(
       { error: "Failed to update image" },
@@ -190,9 +146,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase.from("images").delete().eq("id", id);
-
-    if (error) throw error;
+    await prisma.image.deleteMany({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

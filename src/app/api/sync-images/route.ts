@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { list } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,30 +8,22 @@ export async function POST(request: NextRequest) {
 
     // First, create or get a default user for existing images
     let defaultUser;
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("username", "pentagram_system")
-      .single();
+    const existingUser = await prisma.user.findUnique({
+      where: { username: "pentagram_system" },
+      select: { id: true },
+    });
 
     if (existingUser) {
       defaultUser = existingUser;
     } else {
       // Create default system user
-      const { data: newUser, error: userError } = await supabase
-        .from("users")
-        .insert([
-          {
-            username: "pentagram_system",
-            email: "system@pentagram.app",
-            name: "Pentagram System",
-          },
-        ])
-        .select()
-        .single();
-
-      if (userError) throw userError;
-      defaultUser = newUser;
+      defaultUser = await prisma.user.create({
+        data: {
+          username: "pentagram_system",
+          email: "system@pentagram.app",
+          name: "Pentagram System",
+        },
+      });
     }
 
     // Get all images from Vercel blob
@@ -48,13 +40,11 @@ export async function POST(request: NextRequest) {
     console.log(`Found ${imageBlobs.length} images in Vercel blob`);
 
     // Get existing images from database to avoid duplicates
-    const { data: existingImages } = await supabase
-      .from("images")
-      .select("blob_name");
+    const existingImages = await prisma.image.findMany({
+      select: { blob_name: true },
+    });
 
-    const existingBlobNames = new Set(
-      existingImages?.map(img => img.blob_name) || []
-    );
+    const existingBlobNames = new Set(existingImages.map(img => img.blob_name));
 
     const newImages = [];
     let skipped = 0;
@@ -71,36 +61,21 @@ export async function POST(request: NextRequest) {
 
       // Create database record for this image
       try {
-        const { data: imageRecord, error } = await supabase
-          .from("images")
-          .insert([
-            {
-              user_id: defaultUser.id,
-              blob_name: blobName,
-              is_public: true, // Default to public as requested
-              upload_date: blob.uploadedAt,
-            },
-          ])
-          .select(
-            `
-            *,
-            users:user_id (
-              username,
-              name
-            )
-          `
-          )
-          .single();
+        const imageRecord = await prisma.image.create({
+          data: {
+            user_id: defaultUser.id,
+            blob_name: blobName,
+            is_public: true, // Default to public as requested
+            upload_date: blob.uploadedAt,
+          },
+          include: { users: { select: { username: true, name: true } } },
+        });
 
-        if (error) {
-          console.error(`Error creating record for ${blobName}:`, error);
-        } else {
-          newImages.push({
-            ...imageRecord,
-            downloadUrl: blob.downloadUrl,
-          });
-          created++;
-        }
+        newImages.push({
+          ...imageRecord,
+          downloadUrl: blob.downloadUrl,
+        });
+        created++;
       } catch (err) {
         console.error(`Failed to process ${blobName}:`, err);
       }
@@ -142,9 +117,7 @@ export async function GET() {
       /\.(jpg|jpeg|png|gif|webp)$/i.test(blob.pathname)
     ).length;
 
-    const { count: dbImageCount } = await supabase
-      .from("images")
-      .select("*", { count: "exact", head: true });
+    const dbImageCount = await prisma.image.count();
 
     return NextResponse.json({
       vercelBlobImages: blobImageCount,

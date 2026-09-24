@@ -1,0 +1,74 @@
+// Prisma schema for the pentagram database (previously hosted on Supabase).
+// Model fields keep the original snake_case column names so API responses
+// keep the same JSON shape.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  // Clerk user IDs are stored here, so this is text rather than uuid
+  id         String   @id @default(uuid())
+  username   String   @unique
+  email      String   @unique
+  name       String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  images   Image[]
+  comments Comment[]
+  likes    Like[]
+
+  @@map("users")
+}
+
+model Image {
+  id          String   @id @default(uuid())
+  user_id     String
+  blob_name   String
+  is_public   Boolean  @default(true)
+  upload_date DateTime @default(now()) @db.Timestamptz(6)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  users    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  comments Comment[]
+  likes    Like[]
+
+  @@index([user_id])
+  @@index([blob_name])
+  @@map("images")
+}
+
+model Comment {
+  id           String   @id @default(uuid())
+  image_id     String
+  user_id      String
+  comment_text String
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  images Image @relation(fields: [image_id], references: [id], onDelete: Cascade)
+  users  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([image_id])
+  @@map("comments")
+}
+
+model Like {
+  id         String   @id @default(uuid())
+  image_id   String
+  user_id    String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  images Image @relation(fields: [image_id], references: [id], onDelete: Cascade)
+  users  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([image_id, user_id])
+  @@map("likes")
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -51,30 +51,28 @@ export async function POST(request: Request) {
     // Get or create default user if no user_id provided
     let finalUserId = user_id;
     if (!finalUserId) {
-      const { data: defaultUser } = await supabase
-        .from("users")
-        .select("id")
-        .eq("username", "pentagram_system")
-        .single();
+      const defaultUser = await prisma.user
+        .findUnique({
+          where: { username: "pentagram_system" },
+          select: { id: true },
+        })
+        .catch(() => null);
 
       if (defaultUser) {
         finalUserId = defaultUser.id;
       } else {
         // Create default system user
-        const { data: newUser, error: userError } = await supabase
-          .from("users")
-          .insert([{
-            username: "pentagram_system",
-            email: "system@pentagram.app",
-            name: "Pentagram System"
-          }])
-          .select()
-          .single();
-
-        if (userError) {
-          console.error("Failed to create default user:", userError);
-        } else {
+        try {
+          const newUser = await prisma.user.create({
+            data: {
+              username: "pentagram_system",
+              email: "system@pentagram.app",
+              name: "Pentagram System",
+            },
+          });
           finalUserId = newUser.id;
+        } catch (userError) {
+          console.error("Failed to create default user:", userError);
         }
       }
     }
@@ -83,29 +81,16 @@ export async function POST(request: Request) {
     let imageRecord = null;
     if (finalUserId) {
       try {
-        const { data, error: dbError } = await supabase
-          .from("images")
-          .insert([{
+        imageRecord = await prisma.image.create({
+          data: {
             user_id: finalUserId,
             blob_name: filename,
-            is_public: true
-          }])
-          .select(`
-            *,
-            users:user_id (
-              username,
-              name
-            )
-          `)
-          .single();
-
-        if (dbError) {
-          console.error("Failed to create image record:", dbError);
-        } else {
-          imageRecord = data;
-        }
+            is_public: true,
+          },
+          include: { users: { select: { username: true, name: true } } },
+        });
       } catch (dbErr) {
-        console.error("Database error:", dbErr);
+        console.error("Failed to create image record:", dbErr);
       }
     }
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
+
+const withUser = { users: { select: { username: true, name: true } } };
 
 // GET /api/likes - Get likes for an image
 export async function GET(request: NextRequest) {
@@ -15,22 +17,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const query = supabase
-      .from("likes")
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .eq("image_id", imageId);
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    const data = await prisma.like.findMany({
+      where: { image_id: imageId },
+      include: withUser,
+    });
 
     // Check if current user has liked this image
     let userHasLiked = false;
@@ -65,78 +55,54 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify image exists
-    const { data: imageExists } = await supabase
-      .from("images")
-      .select("id")
-      .eq("id", image_id)
-      .single();
+    const imageExists = await prisma.image.findUnique({
+      where: { id: image_id },
+      select: { id: true },
+    });
 
     if (!imageExists) {
       return NextResponse.json({ error: "Image not found" }, { status: 404 });
     }
 
     // Verify user exists
-    const { data: userExists } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", user_id)
-      .single();
+    const userExists = await prisma.user.findUnique({
+      where: { id: user_id },
+      select: { id: true },
+    });
 
     if (!userExists) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Check if user has already liked this image
-    const { data: existingLike } = await supabase
-      .from("likes")
-      .select("id")
-      .eq("image_id", image_id)
-      .eq("user_id", user_id)
-      .single();
+    const existingLike = await prisma.like.findUnique({
+      where: { image_id_user_id: { image_id, user_id } },
+      select: { id: true },
+    });
 
     let liked = false;
     let likeData = null;
 
     if (existingLike) {
       // Unlike - remove the like
-      const { error } = await supabase
-        .from("likes")
-        .delete()
-        .eq("id", existingLike.id);
-
-      if (error) throw error;
+      await prisma.like.delete({ where: { id: existingLike.id } });
       liked = false;
     } else {
       // Like - add the like
-      const { data, error } = await supabase
-        .from("likes")
-        .insert([{ image_id, user_id }])
-        .select(
-          `
-          *,
-          users:user_id (
-            username,
-            name
-          )
-        `
-        )
-        .single();
-
-      if (error) throw error;
+      likeData = await prisma.like.create({
+        data: { image_id, user_id },
+        include: withUser,
+      });
       liked = true;
-      likeData = data;
     }
 
     // Get updated like count
-    const { data: allLikes } = await supabase
-      .from("likes")
-      .select("id")
-      .eq("image_id", image_id);
+    const count = await prisma.like.count({ where: { image_id } });
 
     return NextResponse.json({
       success: true,
       liked,
-      count: allLikes?.length || 0,
+      count,
       like: likeData,
     });
   } catch (error) {
@@ -162,23 +128,16 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase
-      .from("likes")
-      .delete()
-      .eq("image_id", imageId)
-      .eq("user_id", userId);
-
-    if (error) throw error;
+    await prisma.like.deleteMany({
+      where: { image_id: imageId, user_id: userId },
+    });
 
     // Get updated like count
-    const { data: allLikes } = await supabase
-      .from("likes")
-      .select("id")
-      .eq("image_id", imageId);
+    const count = await prisma.like.count({ where: { image_id: imageId } });
 
     return NextResponse.json({
       success: true,
-      count: allLikes?.length || 0,
+      count,
     });
   } catch (error) {
     console.error("Error deleting like:", error);

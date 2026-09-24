@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 
 // GET /api/users - Get all users or search by username/email
 export async function GET(request: NextRequest) {
@@ -9,36 +10,22 @@ export async function GET(request: NextRequest) {
     const email = searchParams.get("email");
     const id = searchParams.get("id");
 
-    let query = supabase.from("users").select("*");
-
     if (id) {
-      query = query.eq("id", id);
-      const { data, error } = await query.single();
+      const data = await prisma.user.findUnique({ where: { id } });
 
-      if (error) {
-        if (error.code === "PGRST116") {
-          return NextResponse.json(
-            { error: "User not found" },
-            { status: 404 }
-          );
-        }
-        throw error;
+      if (!data) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
       return NextResponse.json({ user: data });
     }
 
-    if (username) {
-      query = query.eq("username", username);
-    }
-
-    if (email) {
-      query = query.eq("email", email);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    const data = await prisma.user.findMany({
+      where: {
+        ...(username ? { username } : {}),
+        ...(email ? { email } : {}),
+      },
+    });
 
     return NextResponse.json({ users: data });
   } catch (error) {
@@ -62,24 +49,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .insert([{ username, email, name }])
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json(
-          { error: "Username or email already exists" },
-          { status: 409 }
-        );
-      }
-      throw error;
-    }
+    const data = await prisma.user.create({ data: { username, email, name } });
 
     return NextResponse.json({ user: data }, { status: 201 });
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "Username or email already exists" },
+        { status: 409 }
+      );
+    }
     console.error("Error creating user:", error);
     return NextResponse.json(
       { error: "Failed to create user" },
@@ -112,28 +94,21 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
+    const data = await prisma.user.update({ where: { id }, data: updates });
 
-    if (error) {
-      if (error.code === "PGRST116") {
+    return NextResponse.json({ user: data });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2025") {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
-      if (error.code === "23505") {
+      if (error.code === "P2002") {
         return NextResponse.json(
           { error: "Username or email already exists" },
           { status: 409 }
         );
       }
-      throw error;
     }
-
-    return NextResponse.json({ user: data });
-  } catch (error) {
     console.error("Error updating user:", error);
     return NextResponse.json(
       { error: "Failed to update user" },
@@ -155,9 +130,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase.from("users").delete().eq("id", id);
-
-    if (error) throw error;
+    await prisma.user.deleteMany({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

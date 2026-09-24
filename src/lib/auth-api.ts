@@ -11,7 +11,7 @@ export async function makeAuthenticatedRequest(
   getToken: (options?: { template?: string }) => Promise<string | null>
 ): Promise<Response> {
   try {
-    const token = await getToken({ template: "supabase" });
+    const token = await getToken();
     if (!token) {
       throw new Error("No authentication token available");
     }

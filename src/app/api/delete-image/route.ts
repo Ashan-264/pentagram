@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { del } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
 
 export async function DELETE(request: Request) {
   try {
@@ -18,13 +18,9 @@ export async function DELETE(request: Request) {
 
     // If imageId is provided, get the image record from database
     if (imageId) {
-      const { data, error } = await supabase
-        .from("images")
-        .select("*")
-        .eq("id", imageId)
-        .single();
+      const data = await prisma.image.findUnique({ where: { id: imageId } });
 
-      if (error) {
+      if (!data) {
         return NextResponse.json(
           { success: false, error: "Image not found in database" },
           { status: 404 }
@@ -58,12 +54,9 @@ export async function DELETE(request: Request) {
 
     // Delete from database if we have the record
     if (imageRecord) {
-      const { error: dbError } = await supabase
-        .from("images")
-        .delete()
-        .eq("id", imageRecord.id);
-
-      if (dbError) {
+      try {
+        await prisma.image.deleteMany({ where: { id: imageRecord.id } });
+      } catch (dbError) {
         console.error("Failed to delete from database:", dbError);
         // Continue with success since blob was deleted
       }
@@ -71,10 +64,9 @@ export async function DELETE(request: Request) {
       // Try to find and delete database record by blob name
       const blobName = url.split("/").pop()?.split("?")[0];
       if (blobName) {
-        await supabase
-          .from("images")
-          .delete()
-          .eq("blob_name", blobName);
+        await prisma.image
+          .deleteMany({ where: { blob_name: blobName } })
+          .catch(() => {});
       }
     }
 

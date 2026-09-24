@@ -1,40 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
-  getCurrentUser,
-  getAuthenticatedSupabaseFromRequest,
-  ensureUserExists,
-} from "../../../lib/clerk-supabase";
+import { NextResponse } from "next/server";
+import { getCurrentUser, ensureUserExists } from "../../../lib/clerk-auth";
+import { prisma } from "@/lib/prisma";
 
 /**
- * Example API route showing Clerk + Supabase authentication
+ * Example API route showing Clerk authentication with the Prisma database
  */
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Method 1: Get user from Clerk server-side auth
+    // Get user from Clerk server-side auth
     const { userId } = await getCurrentUser();
-
-    // Method 2: Get authenticated Supabase client from request header
-    const supabase = await getAuthenticatedSupabaseFromRequest(request);
 
     // Ensure user exists in our database
     const user = await ensureUserExists(userId);
 
-    // Now you can make authenticated queries with RLS
-    const { data: userImages, error } = await supabase
-      .from("images")
-      .select("*")
-      .eq("user_id", userId);
-
-    if (error) {
-      throw error;
-    }
+    // Queries are scoped to the authenticated user
+    const userImages = await prisma.image.findMany({
+      where: { user_id: userId },
+    });
 
     return NextResponse.json({
       success: true,
       user: user,
       images: userImages,
-      message: "Successfully fetched user data with Clerk + Supabase",
+      message: "Successfully fetched user data with Clerk + Prisma",
     });
   } catch (error) {
     console.error("Authentication error:", error);
@@ -48,32 +37,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const { userId } = await getCurrentUser();
-    const supabase = await getAuthenticatedSupabaseFromRequest(request);
 
     // Parse request body
     //const body = await request.json();
     //const { title, description } = body;
 
     // Example: Create a new image record
-    const { data: newImage, error } = await supabase
-      .from("images")
-      .insert([
-        {
-          user_id: userId,
-          blob_name: `example-${Date.now()}.jpg`,
-          is_public: true,
-          upload_date: new Date().toISOString(),
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
+    const newImage = await prisma.image.create({
+      data: {
+        user_id: userId,
+        blob_name: `example-${Date.now()}.jpg`,
+        is_public: true,
+        upload_date: new Date(),
+      },
+    });
 
     return NextResponse.json({
       success: true,

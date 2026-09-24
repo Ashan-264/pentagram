@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
+
+const withUser = { users: { select: { username: true, name: true } } };
 
 // GET /api/comments - Get comments for an image
 export async function GET(request: NextRequest) {
@@ -15,27 +17,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query = supabase
-      .from("comments")
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .eq("image_id", imageId)
-      .order("created_at", { ascending: true });
-
-    if (userId) {
-      query = query.eq("user_id", userId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    const data = await prisma.comment.findMany({
+      where: { image_id: imageId, ...(userId ? { user_id: userId } : {}) },
+      include: withUser,
+      orderBy: { created_at: "asc" },
+    });
 
     return NextResponse.json({ comments: data });
   } catch (error) {
@@ -60,42 +46,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify image exists
-    const { data: imageExists } = await supabase
-      .from("images")
-      .select("id")
-      .eq("id", image_id)
-      .single();
+    const imageExists = await prisma.image.findUnique({
+      where: { id: image_id },
+      select: { id: true },
+    });
 
     if (!imageExists) {
       return NextResponse.json({ error: "Image not found" }, { status: 404 });
     }
 
     // Verify user exists
-    const { data: userExists } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", user_id)
-      .single();
+    const userExists = await prisma.user.findUnique({
+      where: { id: user_id },
+      select: { id: true },
+    });
 
     if (!userExists) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { data, error } = await supabase
-      .from("comments")
-      .insert([{ image_id, user_id, comment_text }])
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .single();
-
-    if (error) throw error;
+    const data = await prisma.comment.create({
+      data: { image_id, user_id, comment_text },
+      include: withUser,
+    });
 
     return NextResponse.json(
       {
@@ -126,20 +99,13 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify the comment belongs to the user
-    const { data: existingComment, error: fetchError } = await supabase
-      .from("comments")
-      .select("user_id")
-      .eq("id", id)
-      .single();
+    const existingComment = await prisma.comment.findUnique({
+      where: { id },
+      select: { user_id: true },
+    });
 
-    if (fetchError) {
-      if (fetchError.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "Comment not found" },
-          { status: 404 }
-        );
-      }
-      throw fetchError;
+    if (!existingComment) {
+      return NextResponse.json({ error: "Comment not found" }, { status: 404 });
     }
 
     if (existingComment.user_id !== user_id) {
@@ -149,22 +115,11 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("comments")
-      .update({ comment_text })
-      .eq("id", id)
-      .select(
-        `
-        *,
-        users:user_id (
-          username,
-          name
-        )
-      `
-      )
-      .single();
-
-    if (error) throw error;
+    const data = await prisma.comment.update({
+      where: { id },
+      data: { comment_text },
+      include: withUser,
+    });
 
     return NextResponse.json({ comment: data });
   } catch (error) {
@@ -191,20 +146,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify the comment belongs to the user
-    const { data: existingComment, error: fetchError } = await supabase
-      .from("comments")
-      .select("user_id")
-      .eq("id", id)
-      .single();
+    const existingComment = await prisma.comment.findUnique({
+      where: { id },
+      select: { user_id: true },
+    });
 
-    if (fetchError) {
-      if (fetchError.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "Comment not found" },
-          { status: 404 }
-        );
-      }
-      throw fetchError;
+    if (!existingComment) {
+      return NextResponse.json({ error: "Comment not found" }, { status: 404 });
     }
 
     if (existingComment.user_id !== userId) {
@@ -214,9 +162,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase.from("comments").delete().eq("id", id);
-
-    if (error) throw error;
+    await prisma.comment.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {
