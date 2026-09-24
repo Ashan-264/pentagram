@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
           content: text,
         },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-20b",
     });
 
     const result = chatCompletion.choices[0].message.content;
