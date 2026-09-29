@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
+
+/** Parse a query-string integer, returning null when it is absent or invalid. */
+const parsePositiveInt = (value: string | null, min: number): number | null => {
+  if (value === null) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= min ? parsed : null;
+};
+
+const DEFAULT_PAGE_SIZE = 10;
 
 // GET /api/images - Get images with optional filters
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
     const isPublic = searchParams.get("isPublic");
@@ -49,15 +59,17 @@ export async function GET(request: NextRequest) {
       query = query.eq("is_public", isPublic === "true");
     }
 
-    if (limit) {
-      query = query.limit(parseInt(limit));
-    }
+    // Unparseable values are ignored rather than passed through as NaN, which
+    // PostgREST rejects with a 400.
+    const limitValue = parsePositiveInt(limit, 1);
+    const offsetValue = parsePositiveInt(offset, 0);
 
-    if (offset) {
-      query = query.range(
-        parseInt(offset),
-        parseInt(offset) + parseInt(limit || "10") - 1
-      );
+    if (offsetValue !== null) {
+      // range() already bounds the row count, so limit() is not also applied.
+      const pageSize = limitValue ?? DEFAULT_PAGE_SIZE;
+      query = query.range(offsetValue, offsetValue + pageSize - 1);
+    } else if (limitValue !== null) {
+      query = query.limit(limitValue);
     }
 
     const { data, error } = await query;
@@ -77,6 +89,7 @@ export async function GET(request: NextRequest) {
 // POST /api/images - Create a new image record
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { user_id, blob_name, is_public = true } = await request.json();
 
     if (!user_id || !blob_name) {
@@ -126,6 +139,7 @@ export async function POST(request: NextRequest) {
 // PUT /api/images - Update an image record
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { id, is_public } = await request.json();
 
     if (!id) {
@@ -180,6 +194,7 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/images - Delete an image record
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 

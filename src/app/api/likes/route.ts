@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 // GET /api/likes - Get likes for an image
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const imageId = searchParams.get("imageId");
     const userId = searchParams.get("userId");
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
 // POST /api/likes - Toggle like/unlike for an image
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { image_id, user_id } = await request.json();
 
     if (!image_id || !user_id) {
@@ -151,6 +153,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/likes - Remove a specific like (alternative to POST toggle)
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const imageId = searchParams.get("imageId");
     const userId = searchParams.get("userId");

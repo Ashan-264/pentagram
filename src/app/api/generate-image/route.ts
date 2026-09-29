@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
+    const supabase = getSupabase();
     const body = await request.json();
     const { text, user_id } = body;
-    console.log(text);
+
+    // Without this the prompt is sent to the generator as the string
+    // "undefined" and an unusable image comes back.
+    if (typeof text !== "string" || !text.trim()) {
+      return NextResponse.json(
+        { success: false, error: "A text prompt is required" },
+        { status: 400 }
+      );
+    }
+
     // TODO: Call your Image Generation API here
     // For now, we'll just echo back the text
 

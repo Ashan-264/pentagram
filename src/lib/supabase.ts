@@ -1,19 +1,36 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Create the default client (for non-authenticated requests)
-export const supabase = createClient(supabaseUrl, supabaseKey);
+const requireConfig = (): { url: string; key: string } => {
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error(
+      "Supabase configuration missing: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    );
+  }
+  return { url: supabaseUrl, key: supabaseKey };
+};
+
+let defaultClient: SupabaseClient | null = null;
+
+// Default client (for non-authenticated requests). Created on first use so that
+// importing this module - which happens at build time - does not require the
+// runtime environment variables to be present.
+export const getSupabase = (): SupabaseClient => {
+  if (!defaultClient) {
+    const { url, key } = requireConfig();
+    defaultClient = createClient(url, key);
+  }
+  return defaultClient;
+};
 
 // Create authenticated client with Clerk JWT
 export const createAuthenticatedSupabaseClient = (
   token: string
 ): SupabaseClient => {
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Supabase configuration missing");
-  }
-  return createClient(supabaseUrl, supabaseKey, {
+  const { url, key } = requireConfig();
+  return createClient(url, key, {
     global: {
       headers: {
         Authorization: `Bearer ${token}`,

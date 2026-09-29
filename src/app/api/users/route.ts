@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 // GET /api/users - Get all users or search by username/email
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const username = searchParams.get("username");
     const email = searchParams.get("email");
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
 // POST /api/users - Create a new user
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { username, email, name } = await request.json();
 
     if (!username || !email || !name) {
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
 // PUT /api/users - Update a user
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { id, username, email, name } = await request.json();
 
     if (!id) {
@@ -145,6 +148,7 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/users - Delete a user
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 

@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { list } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
+
+/** Parse a query-string integer, returning null when it is absent or invalid. */
+const parsePositiveInt = (value: string | null, min: number): number | null => {
+  if (value === null) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= min ? parsed : null;
+};
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const includePrivate = searchParams.get("includePrivate") === "true";
     const userId = searchParams.get("userId");
@@ -34,16 +42,16 @@ export async function GET(request: NextRequest) {
       query = query.eq("user_id", userId);
     }
 
-    // Pagination
-    if (limit) {
-      query = query.limit(parseInt(limit));
-    }
+    // Pagination. Unparseable values are ignored rather than passed through as
+    // NaN, which PostgREST rejects with a 400.
+    const limitValue = parsePositiveInt(limit, 1);
+    const offsetValue = parsePositiveInt(offset, 0);
 
-    if (offset && limit) {
-      query = query.range(
-        parseInt(offset),
-        parseInt(offset) + parseInt(limit) - 1
-      );
+    if (offsetValue !== null && limitValue !== null) {
+      // range() already bounds the row count, so limit() is not also applied.
+      query = query.range(offsetValue, offsetValue + limitValue - 1);
+    } else if (limitValue !== null) {
+      query = query.limit(limitValue);
     }
 
     const { data: dbImages, error } = await query;

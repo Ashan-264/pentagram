@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Container,
   Grid,
@@ -27,13 +27,15 @@ interface ImageData {
 type TabValue = "all" | "public" | "private";
 
 const Gallery: React.FC<{ trigger: number }> = ({ trigger }) => {
-  const [images, setImages] = useState<ImageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [currentTab, setCurrentTab] = useState<TabValue>("all");
   const [allImages, setAllImages] = useState<ImageData[]>([]); // Store all images
 
   useEffect(() => {
+    // Guards against an earlier, slower response overwriting a newer one.
+    let ignore = false;
+
     const fetchImages = async () => {
       try {
         // Fetch all images (including private ones)
@@ -49,44 +51,42 @@ const Gallery: React.FC<{ trigger: number }> = ({ trigger }) => {
           );
         }
         const data = await response.json();
-        console.log("Fetched images:", data);
-        setAllImages(data.images);
-        filterImagesByTab("all", data.images);
+        if (ignore) {
+          return;
+        }
+        setAllImages(Array.isArray(data.images) ? data.images : []);
       } catch (error) {
         console.error("Error fetching images:", error);
       } finally {
-        setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+        }
       }
     };
 
     fetchImages();
-  }, [trigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filterImagesByTab = (
-    tab: TabValue,
-    imageList: ImageData[] = allImages
-  ) => {
-    let filteredImages: ImageData[];
+    return () => {
+      ignore = true;
+    };
+  }, [trigger]);
 
-    switch (tab) {
+  // Derived from allImages so the visible list can never drift out of sync with
+  // the selected tab (e.g. after a refetch or a privacy change).
+  const images = useMemo(() => {
+    switch (currentTab) {
       case "public":
-        filteredImages = imageList.filter(img => img.is_public);
-        break;
+        return allImages.filter(img => img.is_public);
       case "private":
-        filteredImages = imageList.filter(img => !img.is_public);
-        break;
+        return allImages.filter(img => !img.is_public);
       case "all":
       default:
-        filteredImages = imageList;
-        break;
+        return allImages;
     }
-
-    setImages(filteredImages);
-  };
+  }, [allImages, currentTab]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: TabValue) => {
     setCurrentTab(newValue);
-    filterImagesByTab(newValue);
   };
 
   const handleDelete = async (imageId: string) => {
@@ -108,9 +108,7 @@ const Gallery: React.FC<{ trigger: number }> = ({ trigger }) => {
         throw new Error("Failed to delete image");
       }
 
-      // Remove the image from both all images and current filtered images
       setAllImages(prevImages => prevImages.filter(img => img.id !== imageId));
-      setImages(prevImages => prevImages.filter(img => img.id !== imageId));
     } catch (error) {
       console.error("Error deleting image:", error);
       alert("Failed to delete image. Please try again.");
@@ -136,14 +134,11 @@ const Gallery: React.FC<{ trigger: number }> = ({ trigger }) => {
   }
 
   const handlePrivacyChange = (imageId: string, isPublic: boolean) => {
-    // Update both allImages and current filtered images
-    const updateImages = (prevImages: ImageData[]) =>
+    setAllImages(prevImages =>
       prevImages.map(img =>
         img.id === imageId ? { ...img, is_public: isPublic } : img
-      );
-
-    setAllImages(updateImages);
-    setImages(updateImages);
+      )
+    );
   };
 
   return (

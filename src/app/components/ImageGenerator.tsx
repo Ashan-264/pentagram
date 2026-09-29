@@ -24,15 +24,16 @@ export default function ImageGenerator({ generateImage }: ImageGeneratorProps) {
       }
 
       if (result.imageURL) {
+        const url = result.imageURL;
         const img = new Image();
         img.onload = () => {
-          if (result.imageURL) {
-            setImageURL(result.imageURL);
-          }
+          setImageURL(url);
         };
-        img.src = result.imageURL;
+        img.onerror = () => {
+          console.error("Generated image could not be loaded:", url);
+        };
+        img.src = url;
       }
-      console.log(result);
       setInputText("");
     } catch (error) {
       console.error("Error:", error);
@@ -50,6 +51,8 @@ export default function ImageGenerator({ generateImage }: ImageGeneratorProps) {
           <NextImage
             src={imageURL}
             alt="Generated artwork"
+            width={1024}
+            height={1024}
             className="w-full h-auto"
           />
         </div>

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { del } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function DELETE(request: Request) {
   try {
+    const supabase = getSupabase();
     const { url, imageId, userId } = await request.json();
 
     if (!url && !imageId) {

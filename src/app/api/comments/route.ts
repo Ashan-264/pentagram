@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 // GET /api/comments - Get comments for an image
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const imageId = searchParams.get("imageId");
     const userId = searchParams.get("userId");
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
 // POST /api/comments - Create a new comment
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { image_id, user_id, comment_text } = await request.json();
 
     if (!image_id || !user_id || !comment_text) {
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest) {
 // PUT /api/comments - Update a comment
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { id, comment_text, user_id } = await request.json();
 
     if (!id || !comment_text || !user_id) {
@@ -179,6 +182,7 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/comments - Delete a comment
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const userId = searchParams.get("userId");

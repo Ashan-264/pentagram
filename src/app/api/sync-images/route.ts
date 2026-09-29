@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { list } from "@vercel/blob";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
-    const { force = false } = await request.json();
+    const supabase = getSupabase();
+    // The body is optional; an empty request must not fail JSON parsing.
+    const body = await request.json().catch(() => ({}));
+    const { force = false } = body ?? {};
 
     // First, create or get a default user for existing images
     let defaultUser;
@@ -131,6 +134,7 @@ export async function POST(request: NextRequest) {
 // GET endpoint to check sync status
 export async function GET() {
   try {
+    const supabase = getSupabase();
     // Get counts from both sources
     const vercelToken = process.env.BLOB_READ_WRITE_TOKEN;
     const blobsArr = await list({

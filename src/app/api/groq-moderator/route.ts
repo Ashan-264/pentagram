@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-const client = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+let client: Groq | null = null;
+
+// Created on first use: constructing the client at module scope makes the
+// build fail when GROQ_API_KEY is not present in the build environment.
+const getClient = (): Groq => {
+  if (!client) {
+    client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return client;
+};
 
 export async function POST(req: NextRequest) {
   try {
+    const client = getClient();
     const { text } = await req.json();
 
     if (!text) {
@@ -31,7 +39,14 @@ export async function POST(req: NextRequest) {
       model: "llama-3.3-70b-versatile",
     });
 
-    const result = chatCompletion.choices[0].message.content;
+    const result = chatCompletion.choices[0]?.message?.content;
+
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: "Moderation returned an empty response." },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ success: true, result: result });
   } catch (error) {

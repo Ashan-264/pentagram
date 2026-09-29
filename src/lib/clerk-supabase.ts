@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { supabase, createAuthenticatedSupabaseClient } from "./supabase";
+import { getSupabase, createAuthenticatedSupabaseClient } from "./supabase";
 import { NextRequest } from "next/server";
 
 /**
@@ -44,8 +44,15 @@ export async function getCurrentUser() {
  */
 export function getUserIdFromToken(token: string): string | null {
   try {
-    // Decode JWT payload (this is just the payload, not verification)
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    // Decode JWT payload (this is just the payload, not verification).
+    // JWT segments are base64url, which atob() does not accept directly.
+    const segment = token.split(".")[1];
+    if (!segment) {
+      return null;
+    }
+    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded));
     return payload.sub || null;
   } catch (error) {
     console.error("Failed to decode token:", error);
@@ -62,6 +69,8 @@ export async function ensureUserExists(
   userName?: string
 ) {
   try {
+    const supabase = getSupabase();
+
     // Check if user exists
     const { data: existingUser, error: fetchError } = await supabase
       .from("users")

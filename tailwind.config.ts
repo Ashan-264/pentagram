@@ -1,6 +1,9 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  // The app toggles the theme by adding/removing `dark` on <html>, so the
+  // `dark:` variants must be class-driven rather than following the OS setting.
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -15,12 +18,4 @@ export default {
     },
   },
   plugins: [],
-
-  include: ["./src/**/*"],
-  compilerOptions: {
-    strict: true,
-    esModuleInterop: true,
-    lib: ["dom", "es2015"],
-    jsx: "react",
-  },
 } satisfies Config;

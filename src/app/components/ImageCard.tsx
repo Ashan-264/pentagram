@@ -39,10 +39,11 @@ interface Comment {
   user_id: string;
   comment_text: string;
   created_at: string;
+  // Null when the joined user row no longer exists.
   users: {
     username: string;
     name: string;
-  };
+  } | null;
 }
 
 interface ImageData {
@@ -88,10 +89,13 @@ const ImageCard: React.FC<ImageCardProps> = ({
   const { getToken } = useAuth();
   const userId = user?.id || "620dbb20-0cea-4982-bc3a-3733695b76c2"; // Fallback to system user
 
+  // userId is a dependency because Clerk resolves the user asynchronously: the
+  // first render uses the fallback id, so the likes have to be refetched once
+  // the real user is known or the heart shows the wrong state.
   useEffect(() => {
     fetchLikes();
     fetchComments();
-  }, [image.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [image.id, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchLikes = async () => {
     try {
@@ -129,7 +133,7 @@ const ImageCard: React.FC<ImageCardProps> = ({
       );
       if (response.ok) {
         const data = await response.json();
-        setComments(data.comments);
+        setComments(Array.isArray(data.comments) ? data.comments : []);
       }
     } catch (error) {
       console.error("Error fetching comments:", error);
@@ -175,7 +179,9 @@ const ImageCard: React.FC<ImageCardProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        setComments(prev => [...prev, data.comment]);
+        if (data.comment) {
+          setComments(prev => [...prev, data.comment]);
+        }
         setNewComment("");
         setCommentDialogOpen(false);
       }
@@ -331,7 +337,7 @@ const ImageCard: React.FC<ImageCardProps> = ({
                           sx={{ display: "flex", alignItems: "center", gap: 1 }}
                         >
                           <Chip
-                            label={comment.users.username}
+                            label={comment.users?.username ?? "Unknown user"}
                             size="small"
                             color="primary"
                             variant="outlined"

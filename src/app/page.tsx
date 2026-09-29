@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 //import { generateImage } from "./actions/generateImage";
 import Gallery from "./components/Gallery";
 import Menu from "./components/Menu";
@@ -13,6 +13,43 @@ interface WindowWithApplePay extends Window {
     canMakePayments(): boolean;
   };
 }
+
+const fetchClientToken = async (): Promise<string> => {
+  try {
+    const response = await fetch("/api/client_token");
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Client token API error:", errorData);
+      throw new Error(
+        errorData.details ||
+          `Failed to fetch client token: ${response.status} ${response.statusText}`
+      );
+    }
+    const data = await response.json();
+    if (!data.clientToken) {
+      throw new Error("Client token not found in response");
+    }
+    return data.clientToken;
+  } catch (error) {
+    console.error("Error fetching client token:", error);
+
+    // Show specific error message if it's a configuration issue
+    if (
+      error instanceof Error &&
+      error.message.includes("Braintree credentials")
+    ) {
+      throw new Error(
+        "Payment system not configured. Please check Braintree credentials in environment variables."
+      );
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Unable to initialize payment system. Please try again later."
+    );
+  }
+};
 
 export default function Home() {
   //const { user, isLoaded } = useUser();
@@ -27,6 +64,9 @@ export default function Home() {
   const [dropinInstance, setDropinInstance] = useState<dropin.Dropin | null>(
     null
   );
+  // Mirrors dropinInstance so the init effect can tear the drop-in down without
+  // having to depend on (and therefore re-run for) the state value.
+  const dropinRef = useRef<dropin.Dropin | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [isPaymentVisible, setIsPaymentVisible] = useState(false); // Payment box hidden by default
 
@@ -38,12 +78,17 @@ export default function Home() {
     }
   }, []);
 
+  // Keep the document class and the stored preference in sync with the state.
+  // Doing this here (rather than only inside the toggle) means the `dark:`
+  // variants also match the saved preference on first load.
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    localStorage.setItem("theme", isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
+
   // Toggle theme function
   const toggleTheme = () => {
     setIsDarkMode(prev => !prev);
-    const newTheme = !isDarkMode ? "dark" : "light";
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", !isDarkMode);
   };
 
   const handleSelectOption = (option: string) => {
@@ -105,7 +150,17 @@ export default function Home() {
       const moderationData = await moderationResponse.json();
       const safeGuard = moderationData.result;
 
-      if (safeGuard.toLowerCase() !== "safe") {
+      // The moderator can return an empty/null completion - fail closed instead
+      // of crashing on .toLowerCase().
+      if (typeof safeGuard !== "string" || !safeGuard.trim()) {
+        throw new Error(
+          "Content safety check was inconclusive. Please try again."
+        );
+      }
+
+      // Tolerate trailing punctuation/casing in the model's reply.
+      const verdict = safeGuard.trim().toLowerCase().replace(/[.!]+$/, "");
+      if (verdict !== "safe") {
         throw new Error(`Content contains unsafe material: ${safeGuard}`);
       }
 
@@ -155,47 +210,14 @@ export default function Home() {
     }
   };
 
-  const fetchClientToken = async (): Promise<string> => {
-    try {
-      const response = await fetch("/api/client_token");
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Client token API error:", errorData);
-        throw new Error(
-          errorData.details ||
-            `Failed to fetch client token: ${response.status} ${response.statusText}`
-        );
-      }
-      const data = await response.json();
-      if (!data.clientToken) {
-        throw new Error("Client token not found in response");
-      }
-      return data.clientToken;
-    } catch (error) {
-      console.error("Error fetching client token:", error);
-
-      // Show specific error message if it's a configuration issue
-      if (
-        error instanceof Error &&
-        error.message.includes("Braintree credentials")
-      ) {
-        throw new Error(
-          "Payment system not configured. Please check Braintree credentials in environment variables."
-        );
-      }
-
-      throw new Error(
-        error instanceof Error
-          ? error.message
-          : "Unable to initialize payment system. Please try again later."
-      );
-    }
-  };
-
   // Initialize the Drop-in UI
   useEffect(() => {
-    let instance: dropin.Dropin | null = null;
-    let isInitializing = false;
+    if (!isPaymentVisible) {
+      return;
+    }
+
+    // Guards against a teardown racing an in-flight initialization.
+    let cancelled = false;
 
     // Add global error handler for Braintree popup issues
     const handleGlobalErrors = (event: ErrorEvent) => {
@@ -231,48 +253,28 @@ export default function Home() {
     };
 
     const initializeDropin = async () => {
-      // Prevent multiple simultaneous initializations
-      if (isInitializing) {
-        console.warn("Drop-in initialization already in progress");
-        return;
-      }
-
-      isInitializing = true;
-
-      // Declare outside try block so it's accessible in catch
-      let originalWindowOpen: typeof window.open = window.open;
+      // Captured so the originals can always be restored, even on failure.
+      const originalWindowOpen: typeof window.open = window.open;
       const originalFetch: typeof window.fetch = window.fetch;
 
       try {
-        // Add global error listeners before initializing
-        window.addEventListener("error", handleGlobalErrors);
-        window.addEventListener("unhandledrejection", handleUnhandledRejection);
-
-        // Clean up any existing instance first
-        if (dropinInstance) {
-          await dropinInstance.teardown();
-          setDropinInstance(null);
-        }
-
-        // Ensure container is completely empty before initialization
+        // Ensure container is completely empty before initialization.
+        // Only the contents are cleared - resetting className would strip the
+        // styling React applied to the element.
         const container = document.getElementById("dropin-container");
-        if (container) {
-          // Clear all content from container
-          container.innerHTML = "";
-          // Remove any existing classes that might interfere
-          container.className = "";
-          // Ensure container is ready for new content
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } else {
+        if (!container) {
           throw new Error(
             "Payment container not found. Please refresh the page."
           );
         }
+        container.innerHTML = "";
 
         const clientToken = await fetchClientToken();
+        if (cancelled) {
+          return;
+        }
 
         // Add protection for Braintree's internal calls
-        originalWindowOpen = window.open;
         window.open = function (...args) {
           const popup = originalWindowOpen.apply(this, args);
           if (popup) {
@@ -304,7 +306,6 @@ export default function Home() {
         };
 
         // Suppress analytics errors by intercepting fetch requests to amplitude
-        const originalFetch = window.fetch;
         window.fetch = function (input, init) {
           if (typeof input === "string" && input.includes("amplitude.com")) {
             console.warn("Suppressed analytics request to:", input);
@@ -313,7 +314,7 @@ export default function Home() {
           return originalFetch.call(this, input, init);
         };
 
-        instance = (await dropin.create({
+        const instance = (await dropin.create({
           authorization: clientToken,
           container: "#dropin-container",
           // Enhanced styling and UX options
@@ -429,77 +430,38 @@ export default function Home() {
             amount: "10.00",
           },
         })) as unknown as dropin.Dropin;
-        setDropinInstance(instance);
 
-        // Restore original functions after initialization
-        window.open = originalWindowOpen;
-        window.fetch = originalFetch;
+        // The effect may have been torn down while create() was in flight.
+        if (cancelled) {
+          await instance.teardown().catch(() => {});
+          return;
+        }
+
+        dropinRef.current = instance;
+        setDropinInstance(instance);
       } catch (err) {
         console.error("Error initializing Drop-in:", err);
 
-        // Remove error listeners if initialization fails
-        window.removeEventListener("error", handleGlobalErrors);
-        window.removeEventListener(
-          "unhandledrejection",
-          handleUnhandledRejection
-        );
-
-        // Restore original functions on error
-        if (typeof originalWindowOpen !== "undefined") {
-          window.open = originalWindowOpen;
+        if (!cancelled) {
+          setNotification(
+            "Failed to initialize payment system. Please try again."
+          );
         }
-        if (typeof originalFetch !== "undefined") {
-          window.fetch = originalFetch;
-        }
-
-        setNotification(
-          "Failed to initialize payment system. Please try again."
-        );
       } finally {
-        isInitializing = false;
+        // Always restore the originals, on both the success and failure paths.
+        window.open = originalWindowOpen;
+        window.fetch = originalFetch;
       }
     };
 
-    // Only initialize if container exists and payment is visible
-    const container = document.getElementById("dropin-container");
-    if (container && isPaymentVisible) {
-      // Wait a bit to ensure DOM is fully ready and avoid double initialization
-      const timeoutId = setTimeout(() => {
-        if (!isInitializing && !dropinInstance) {
-          initializeDropin();
-        }
-      }, 200);
+    // Add global error listeners before initializing
+    window.addEventListener("error", handleGlobalErrors);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
 
-      // Return cleanup function that cancels the timeout if component unmounts quickly
-      return () => {
-        clearTimeout(timeoutId);
-        isInitializing = false;
+    initializeDropin();
 
-        // Remove global error listeners
-        window.removeEventListener("error", handleGlobalErrors);
-        window.removeEventListener(
-          "unhandledrejection",
-          handleUnhandledRejection
-        );
-
-        if (instance) {
-          instance.teardown().catch((error: Error | unknown) => {
-            // Ignore teardown errors - they're expected in some cases
-            console.warn("Drop-in teardown warning:", error);
-          });
-        }
-
-        // Clear container on cleanup
-        const container = document.getElementById("dropin-container");
-        if (container) {
-          container.innerHTML = "";
-        }
-      };
-    }
-
-    // Fallback cleanup if no container found
     return () => {
-      isInitializing = false;
+      cancelled = true;
 
       // Remove global error listeners
       window.removeEventListener("error", handleGlobalErrors);
@@ -507,6 +469,10 @@ export default function Home() {
         "unhandledrejection",
         handleUnhandledRejection
       );
+
+      const instance = dropinRef.current;
+      dropinRef.current = null;
+      setDropinInstance(null);
 
       if (instance) {
         instance.teardown().catch((error: Error | unknown) => {
@@ -521,7 +487,9 @@ export default function Home() {
         container.innerHTML = "";
       }
     };
-  }, [isPaymentVisible, dropinInstance]); // Re-run when payment visibility changes
+    // The instance itself is tracked in a ref: including it here would make the
+    // effect tear down the drop-in it had just created.
+  }, [isPaymentVisible]);
 
   const handlePayment = async () => {
     if (!dropinInstance) {
